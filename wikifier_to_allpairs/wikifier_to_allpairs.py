@@ -178,6 +178,7 @@ def get_xlike_annotations(article, cleartext):
 
 
 def get_allpairs_data(article, lang = None):
+	"""Produce allpairs data from an annotated article."""
 	# get article cleartext
 	cleartext = get_cleartext(article)
 	# get article language if not given
@@ -219,6 +220,35 @@ def get_allpairs_data(article, lang = None):
 
 	# pdb.set_trace()
 	return prec_contexts, succ_contexts, triplets
+
+
+def get_allpairs_data_list(article_list, ret=['contexts', 'triplets'], lang=None):
+	"""
+	Produce allpairs data from a list of annotated articles.
+	Return either just the contexts or the triplets or both.
+	"""
+	if not ('contexts' in ret or 'triplets' in ret):
+		raise ValueError("Return value should be specified. Possible flags: 'contexts', 'triplets'.")
+
+	if 'contexts' in ret:
+		contexts = []
+	if 'triplets' in ret:
+		triplets = []
+
+	for article in article_list:
+		pc, sc, trip = get_allpairs_data(article, lang)
+		if 'contexts' in ret:
+			contexts.extend(sc)
+			contexts.extend(pc)
+		if 'triplets' in ret:
+			triplets.extend(trip)
+
+	if 'contexts' in ret and 'triplets' in ret:
+		return contexts, triplets
+	elif 'contexts' in ret:
+		return contexts
+	elif 'triplets' in ret:
+		return triplets
 
 
 def to_sent_index(index, sentence_span):
@@ -401,7 +431,6 @@ def main():
 		exit(1)
 
 	process_dir(args.directory, args.lang, args.outfile)
-
 
 if __name__ == '__main__':
     main()
