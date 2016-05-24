@@ -209,46 +209,55 @@ def get_allpairs_data(article, lang = None):
 	# 		print '\t', a.start, a.end, a.annotation.get('displayName'), 'str: >%s<' % cleartext[a.start:a.end]
 	
 	# initialize allpairs data lists
-	prec_contexts, succ_contexts, triplets = [], [], []
+	prec_contexts, succ_contexts, triples = [], [], []
 
 	# compute allpairs data per sentence and collect it
 	for (sent_span, word_spans), sas in izip(sw_spans, sent_annotations):
 		pc, sc, tr = get_allpairs_data_sent(sent_span, word_spans, sas)
 		prec_contexts.extend(pc)
 		succ_contexts.extend(sc)
-		triplets.extend(tr)
+		triples.extend(tr)
 
 	# pdb.set_trace()
-	return prec_contexts, succ_contexts, triplets
+	return prec_contexts, succ_contexts, triples
 
 
-def get_allpairs_data_list(article_list, ret=['contexts', 'triplets'], lang=None):
+def get_allpairs_data_article_list(article_list, return_spec=['contexts', 'triples'], lang=None):
 	"""
 	Produce allpairs data from a list of annotated articles.
-	Return either just the contexts or the triplets or both.
+	Return either just the contexts or the triples or both.
 	"""
-	if not ('contexts' in ret or 'triplets' in ret):
-		raise ValueError("Return value should be specified. Possible flags: 'contexts', 'triplets'.")
+	if not ('contexts' in return_spec or 'triples' in return_spec):
+		raise ValueError("Return value should be specified. Possible flags: 'contexts', 'triples'.")
 
-	if 'contexts' in ret:
+	if 'contexts' in return_spec:
 		contexts = []
-	if 'triplets' in ret:
-		triplets = []
+	if 'triples' in return_spec:
+		triples = []
 
 	for article in article_list:
 		pc, sc, trip = get_allpairs_data(article, lang)
-		if 'contexts' in ret:
+		if 'contexts' in return_spec:
 			contexts.extend(sc)
-			contexts.extend(pc)
-		if 'triplets' in ret:
-			triplets.extend(trip)
+			contexts.extend([(entity, context) for (context, entity) in pc])
+		if 'triples' in return_spec:
+			triples.extend(trip)
 
-	if 'contexts' in ret and 'triplets' in ret:
-		return contexts, triplets
-	elif 'contexts' in ret:
+	if 'contexts' in return_spec and 'triples' in return_spec:
+		return contexts, triples
+	elif 'contexts' in return_spec:
 		return contexts
-	elif 'triplets' in ret:
-		return triplets
+	elif 'triples' in return_spec:
+		return triples
+
+
+def get_allpairs_data_article(article, return_spec=['contexts', 'triples'], lang=None):
+	"""
+	Produce allpairs data from an annotated article.
+	Return either just the contexts or the triples or both.
+	"""
+	# wrap article in a single-element-list and call the list function
+	return get_allpairs_data_article_list([article], return_spec, lang)
 
 
 def to_sent_index(index, sentence_span):
@@ -272,7 +281,7 @@ def get_allpairs_data_sent(sentence_span, word_spans, annotations):
 			merged_spans.append(word_span)
 
 	# initialize allpairs data lists
-	prec_contexts, succ_contexts, triplets = [], [], []
+	prec_contexts, succ_contexts, triples = [], [], []
 
 	# iterate over the ordered sentence elemets (words and annotations) and grab contexts of annotations
 	for el_i, element_span in enumerate(merged_spans):
@@ -304,8 +313,8 @@ def get_allpairs_data_sent(sentence_span, word_spans, annotations):
 				# compute sentence-relative context borders
 				context_start = to_sent_index(merged_spans[prev_i].start, sentence_span)
 				context_end = to_sent_index(merged_spans[el_i-1].end, sentence_span)
-				# collect the preceding context
-				prec_contexts.append( (sentence_span.text[context_start:context_end] , element_span.text) )
+				# collect the preceding context; add underscore to indicate where the entity occurs
+				prec_contexts.append( (sentence_span.text[context_start:context_end] + '_' , element_span.text) )
 
 			####################################################################
 			# CHECK SUCCEEDING CONTEXT (+ TRIPLETS)
@@ -327,7 +336,7 @@ def get_allpairs_data_sent(sentence_span, word_spans, annotations):
 					context_end = to_sent_index(merged_spans[succ_i-1].end, sentence_span)
 					# collect the triple if the two annotations are not one next to the other
 					if context_end - context_start > 1:
-						triplets.append( (element_span.text, sentence_span.text[context_start:context_end], merged_spans[succ_i].text) )
+						triples.append( (element_span.text, sentence_span.text[context_start:context_end], merged_spans[succ_i].text) )
 					break
 
 			# if we reached the first element out of context, fix back the index
@@ -339,38 +348,46 @@ def get_allpairs_data_sent(sentence_span, word_spans, annotations):
 				# compute sentence-relative context borders
 				context_start = to_sent_index(merged_spans[el_i+1].start, sentence_span)
 				context_end = to_sent_index(merged_spans[succ_i].end, sentence_span)
-				succ_contexts.append( (element_span.text, sentence_span.text[context_start:context_end]) )
+				succ_contexts.append( (element_span.text, '_' + sentence_span.text[context_start:context_end]) )
 
 
 
 	# # DEBUG
 	# print ' '.join([ws.text if not ws.is_annotated() else '[%s]' % ws.text for ws in merged_spans]), '\n'
 
-	return prec_contexts, succ_contexts, triplets
+	return prec_contexts, succ_contexts, triples
 
 
-def output_allpairs_data(allpairs_data, filename, append = False):
+def output_allpairs_data(filename, contexts=None, triples=None, append = False):
 	"""
-	Write allpairs data into three separate files.
+	Write allpairs data into separate files.
 	Can also append data to existing files.
 	"""
 	# file opening mode set to append if specified
 	file_mode = "a" if append else "w"
 
 	# output each dataset in its own file with the appropriate suffix
-	for suffix, data in zip(['prec', 'succ', 'triple'], allpairs_data):
-		with codecs.open(filename + '_' + suffix, file_mode, encoding = 'utf8') as outfile:
+	if contexts is not None:
+		with codecs.open(filename + '_contexts', file_mode, encoding = 'utf8') as outfile:
 			# if appending to file first add newline to separate from previous content
 			if append:
 				outfile.write('\n')
 			# write data in tab-separated columns
-			outfile.write('\n'.join('\t'.join(data_tuple) for data_tuple in data))
+			outfile.write('\n'.join('\t'.join(data_tuple) for data_tuple in contexts))
+
+	if triples is not None:
+		with codecs.open(filename + '_triples', file_mode, encoding = 'utf8') as outfile:
+			# if appending to file first add newline to separate from previous content
+			if append:
+				outfile.write('\n')
+			# write data in tab-separated columns
+			outfile.write('\n'.join('\t'.join(data_tuple) for data_tuple in triples))
 
 
 def process_dir(directory, lang, outfile):
 	"""Extract allpairs data from all xml files in the given directory."""
 	# initialize aggregation lists
-	prec_data, succ_data, triples = [], [], []
+	contexts, triples = [], []
 	for filename in os.listdir(directory):
 		# print progress
 		filepath = os.path.join(directory, filename)
@@ -379,13 +396,25 @@ def process_dir(directory, lang, outfile):
 		# read the (only) article in the file
 		[article] = get_articles_from_annotator_file(filepath)
 		# compute the allpairs data
-		pd, sd, t = get_allpairs_data(article, lang)
+		cs, ts = get_allpairs_data_article(article, lang=lang)
 		# add the computed data to aggregation lists
-		prec_data.extend(pd)
-		succ_data.extend(sd)
-		triples.extend(t)
+		contexts.extend(cs)
+		triples.extend(ts)
 
-	output_allpairs_data((prec_data, succ_data, triples), outfile)
+	output_allpairs_data(outfile, contexts=contexts, triples=triples)
+
+
+def process_file(filename, lang, outfile):
+	"""Extract allpairs data from all xml files in the given directory."""
+	# initialize aggregation lists
+	print "processing:", filename
+		
+	# read the (only) article in the file
+	[article] = get_articles_from_annotator_file(filename)
+	contexts, triples = get_allpairs_data_article(article, lang=lang)
+
+	output_allpairs_data(outfile, contexts=contexts, triples=triples)
+
 
 
 def underline(line):
@@ -401,7 +430,7 @@ def test():
 
     	#annotations = get_xlike_annotations(a)
 
-    	prec_contexts, succ_contexts, triplets = get_allpairs_data(a)
+    	prec_contexts, succ_contexts, triples = get_allpairs_data(a)
 
     	print underline('PRECEDING CONTEXTS:')
     	print ('\n'.join( '%s    |    %s' % (context, annotation) for context, annotation in prec_contexts )).encode('utf8')
@@ -409,20 +438,30 @@ def test():
     	print '\n\n' + underline('SUCCEEDING CONTEXTS:')
     	print ('\n'.join( '%s    |    %s' % (annotation, context) for annotation, context in succ_contexts )).encode('utf8')
 
-    	print '\n\n' + underline('TRIPLETS:')
-    	print ('\n'.join( '%s    |    %s    | %s' % (annotation1, context, annotation2) for annotation1, context, annotation2 in triplets )).encode('utf8')
+    	print '\n\n' + underline('TRIPLES:')
+    	print ('\n'.join( '%s    |    %s    | %s' % (annotation1, context, annotation2) for annotation1, context, annotation2 in triples )).encode('utf8')
 
-    	output_allpairs_data((prec_contexts, succ_contexts, triplets), 'test', True)
+    	output_allpairs_data((prec_contexts, succ_contexts, triples), 'test', True)
     	pdb.set_trace()	
 
 
 def main():
 	# parse the input arguments
 	parser = argparse.ArgumentParser()
-	parser.add_argument("directory", help="Path to directory with annotated article xml files.")
+	# parser.add_argument("directory", help="Path to directory with annotated article xml files.")
 	parser.add_argument("lang", help="Language of the articles (ISO code). See supported languages using the --lsl option.")
 	parser.add_argument("outfile", help="Path to output file(s). Three files will be created: [outfile]_prec, [outfile]_succ and [outfile]_triple")
 	parser.add_argument("--lsl", action="store_true", default=False, help="print supported languages and exit")
+	subparsers = parser.add_subparsers(help='process directory or single file?')
+
+	parser_dir = subparsers.add_parser('dir', help='process xmls from a given directory')
+	parser_dir.add_argument('dir_name', type=str, help='target directory name')
+	parser_dir.set_defaults(action="process_dir")
+
+	parser_dir = subparsers.add_parser('file', help='process given xml file')
+	parser_dir.add_argument('filename', type=str, help='target xml file name')
+	parser_dir.set_defaults(action="process_file")
+
 	args = parser.parse_args()
 
 	# output supported languages
@@ -430,7 +469,11 @@ def main():
 		print_langs()
 		exit(1)
 
-	process_dir(args.directory, args.lang, args.outfile)
+	if args.action == 'process_file':
+		process_file(args.filename, args.lang, args.outfile)
+	elif args.action == 'process_dir':
+		process_dir(args.dir_name, args.lang, args.outfile)
+
 
 if __name__ == '__main__':
     main()
