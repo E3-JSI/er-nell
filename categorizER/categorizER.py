@@ -26,9 +26,6 @@ query_result = {}
 # get top most likely URIc for the keyword - the number of suggestions is given as parameter
 query_result['concept_suggestions'] = er.suggestConcepts(args.keyword)[:args.max_concept_suggestions]
 
-# print json.dumps(query_result, indent=2)
-# print
-
 # get concept category information fo all suggested concepts
 q = GetConceptInfo([cs['uri'] for cs in query_result['concept_suggestions']], returnInfo = ReturnInfo(conceptInfo = ConceptInfoFlags(conceptClassMembership = True, conceptClassMembershipFull = True)))
 concept_info = er.execQuery(q)
@@ -61,7 +58,14 @@ if args.events_for_keyword:
     # get articles for the events
     if args.get_articles:
         q = QueryEvent([event["uri"] for event in keyword_events['events']['results']])
-        q.addRequestedResult(RequestEventArticleUris())
+        q.addRequestedResult(
+            RequestEventArticles(
+                returnInfo = ReturnInfo(
+                    articleInfo = ArticleInfoFlags(
+                        bodyLen = 0,
+                        title = False,
+                        body = False,
+                        eventUri = False))))
         event_articles = er.execQuery(q)
 
 
@@ -77,8 +81,8 @@ if args.events_for_keyword:
         event['articles'] = []
         if args.get_articles:
             event['articles'] = [
-                "http://eventregistry.org/article/%s" % auri
-                for auri in event_articles[event_info['uri']]['articleUris']['results']]
+                article["url"]
+                for article in event_articles[event_info['uri']]['articles']['results']]
 
         query_result['related_events'].append(event)
 else:
@@ -104,7 +108,14 @@ else:
         # get articles for the events
         if args.get_articles:
             q = QueryEvent([event["uri"] for event in concept_events['events']['results']])
-            q.addRequestedResult(RequestEventArticleUris())
+            q.addRequestedResult(
+                RequestEventArticles(
+                    returnInfo = ReturnInfo(
+                        articleInfo = ArticleInfoFlags(
+                            bodyLen = 0,
+                            title = False,
+                            body = False,
+                            eventUri = False))))
             event_articles = er.execQuery(q)
 
         concept_suggestion['related_events'] = []
@@ -118,8 +129,8 @@ else:
             event['date'] = event_info['eventDate']
             if args.get_articles:
                 event['articles'] = [
-                    "http://eventregistry.org/article/%s" % auri
-                    for auri in event_articles[event_info['uri']]['articleUris']['results']]
+                    article["url"]
+                    for article in event_articles[event_info['uri']]['articles']['results']]
 
             concept_suggestion['related_events'].append(event)
 
