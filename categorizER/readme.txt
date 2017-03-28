@@ -5,11 +5,12 @@ INSTALLATION:
 The eventregistry Python API (https://github.com/gregorleban/EventRegistry) is needed. It is available over pip:
 pip install eventregistry
 
+This script assumes version 6.3.1 of the eventregistry module.
 
 USE:
 -------------------
 
-usage: categorizER.py [-h] [--login LOGIN]
+usage: categorizER.py [-h] [--apiKey API]
                       [--max_concept_suggestions MAX_CONCEPT_SUGGESTIONS]
                       [--max_related_events MAX_RELATED_EVENTS]
                       [--events_for_keyword]
@@ -20,8 +21,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --login LOGIN         Event Registry login information. (format:
-                        'username:password')
+  --apiKey APIKEY       Event Registry API key (obtainable on you ER profile
+                        page).
   --max_concept_suggestions MAX_CONCEPT_SUGGESTIONS
                         Maximum number of concept suggestions (default: 3)
   --max_related_events MAX_RELATED_EVENTS
@@ -33,8 +34,8 @@ optional arguments:
 
 EXAMPLES:
 ---------
-python categorizER.py --login nell@cmu.edu:pass Obama
-python categorizER.py --login nell@cmu.edu:pass "Star Wars"
+python categorizER.py --apiKey 6291ab8b-84fa-4752-89a5-14d790f445e9 Obama
+python categorizER.py --apiKey 6291ab8b-84fa-4752-89a5-14d790f445e9 "Star Wars"
 
 
 PARAMETERS:
@@ -42,9 +43,9 @@ PARAMETERS:
 Parameter values are set to desired values by default. They enable easy control over the query load NELL sends to ER. If we find in future that ER is overloaded by NELL or NELL needs more data per query, we will communicate new parameter values. At the moment the script returns at most 3 concept suggestions with each at most 3 related events.
 
 
-LOGIN:
+APIKEY:
 ------
-Login information is needed since Event Registry limits the number of API requests. This way we can raise this limit for NELL.
+API key is needed since Event Registry limits the number of API requests. This way we can raise this limit for NELL.
 
 
 OUTPUT:
@@ -56,41 +57,41 @@ The JSON structure is as follows:
 {
   "concept_suggestions": [
     {
-      "uri": "_Wikipedia_uri_", 
+      "uri": "_Wikipedia_uri_",
       "label": {
         "eng": "_label_"
-      }, 
-      "score": _score_, 
+      },
+      "score": _score_,
       "topCategory": [
         "_DBpedia_category_URI_"
-      ], 
-      "type": "_type_", 
-      "id": "_id_", 
+      ],
+      "type": "_type_",
+      "id": "_id_",
       "categories": [
         "_DBpedia_category_URI_",
         ...
-      ], 
+      ],
       "related_events": [
         {
-          "fullUri": "_ER_event_URI_", 
-          "date": "_detected_event_date_", 
+          "fullUri": "_ER_event_URI_",
+          "date": "_detected_event_date_",
           "location": {
             "country": {
-              "type": "_locaton_type_", 
+              "type": "_locaton_type_",
               "label": {
                 "eng": "_label_"
               }
-            }, 
-            "type": "_location_type_", 
+            },
+            "type": "_location_type_",
             "label": {
               "eng": "_label_"
             }
-          }, 
-          "uri": "_ER_event_id_", 
+          },
+          "uri": "_ER_event_id_",
           "title": {
             "eng": _extracted_event_title_"
           }
-        }, 
+        },
         ...
       ]
     },
@@ -103,7 +104,7 @@ MAPPING TO ASKNELL:
 -------------------
 Using results to query "New York" in asknell for reference.
 
-Each suggestion in the "concept_suggestions" list corresponds to a possible entity found in the asknell output top (e.g. new_york_city (city), new_york_city (stateorprovince), new_york (company)... for "New York"). It is identified by its Wikipedia URI, label, a simple type (person, org, ...) and an associated confidence score. 
+Each suggestion in the "concept_suggestions" list corresponds to a possible entity found in the asknell output top (e.g. new_york_city (city), new_york_city (stateorprovince), new_york (company)... for "New York"). It is identified by its Wikipedia URI, label, a simple type (person, org, ...) and an associated confidence score.
 
 Each concept can also belong to a set of categories listed in the "categories" field (with the most likely one being repeated in "topCategory"). These categories correspond to the categories in the bottom half of asknell's output (such as "city" and "island" for new_york_city (city) in the case of "New York").
 

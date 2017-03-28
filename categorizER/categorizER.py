@@ -5,21 +5,19 @@ import argparse
 # parse the input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("keyword", help="Keyword to categorize.")
-parser.add_argument("--login", help="Event Registry login information. (format: 'username:password')")
+parser.add_argument("--apiKey", help="Event Registry API key (obtainable on you ER profile page).")
 parser.add_argument("--max_concept_suggestions", action="store", type=int, default=3, help="Maximum number of concept suggestions (default: 3)")
 parser.add_argument("--max_related_events", action="store", type=int, default=3, help="Maximum number of related events (default: 3)")
 parser.add_argument("--events_for_keyword", action="store_true", default=False, help="get [max_related_events] directly related to the given keyword (default: [max_related_events] events per suggested concept)")
 parser.add_argument("--get_articles", action="store_true", default=False, help="get ER article URLs for the events")
 args = parser.parse_args()
 
-# connect to Event Registry and log in if login info provided
-er = EventRegistry()
-if args.login:
-    if len(args.login.split(':')) != 2:
-        print "incorrect login info format; expecting 'username:password'"
-        exit(0)
-    else:
-        print er.login(*tuple(args.login.split(':')))['desc']
+# connect to Event Registry and log in if API key provided
+
+if args.apiKey:
+    er = EventRegistry(apiKey = args.apiKey)
+else:
+    er = EventRegistry()
 
 query_result = {}
 
@@ -27,7 +25,12 @@ query_result = {}
 query_result['concept_suggestions'] = er.suggestConcepts(args.keyword)[:args.max_concept_suggestions]
 
 # get concept category information fo all suggested concepts
-q = GetConceptInfo([cs['uri'] for cs in query_result['concept_suggestions']], returnInfo = ReturnInfo(conceptInfo = ConceptInfoFlags(conceptClassMembership = True, conceptClassMembershipFull = True)))
+q = GetConceptInfo(
+    [cs['uri'] for cs in query_result['concept_suggestions']],
+    returnInfo = ReturnInfo(
+        conceptInfo = ConceptInfoFlags(
+            conceptClassMembership = True,
+            conceptClassMembershipFull = True)))
 concept_info = er.execQuery(q)
 
 # copy the category info into the result json
@@ -104,6 +107,9 @@ else:
                         location=True,
                         date=True))))
         concept_events = er.execQuery(q)
+
+        if "error" in concept_events:
+            continue
 
         # get articles for the events
         if args.get_articles:
