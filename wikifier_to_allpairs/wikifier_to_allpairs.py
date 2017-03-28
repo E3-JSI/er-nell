@@ -66,10 +66,10 @@ class TextSpan(object):
 def print_langs():
 	"""
 	Prints out the supported languages and their abbreviations.
-	Language support is conditioned on sentence splitting capability. 
+	Language support is conditioned on sentence splitting capability.
 	Sentence splitters for more languages can be learned.
 	"""
-	print "supported languages: " 
+	print "supported languages: "
 	print '\n'.join(["    %s - %s" % (c,lang) for c,lang in LANG.iteritems()])
 
 
@@ -97,7 +97,7 @@ def get_cleartext(article):
 	# read article cleartext in unicode and removing <p> tags if they are used
 	# also strip trailing whitespace because they are irrelevant
 	# do not impact word offsets and may interfere with the end punctuation removal
-	
+
 	# if xml contains tag "body-xlike" take its content, otherwise check whole xml
 	if article.find('body-xlike'):
 		cleartext_node = article.xpath('body-xlike/item/text')[0]
@@ -117,7 +117,7 @@ def parse_article_text(cleartext, lang):
 	"""Grab the article cleartext and compute sentence and word spans."""
 	# type should be Pythons internal unicode
 	# print type(cleartext)
-	
+
 	# # use language-appropriate sentence splitter and then split each sentence into words on whitespace
 	# spans = [((s,e), [x for x in WHITESPACE_TOKNIZER.span_tokenize(cleartext[s:e])]) for s,e in SENT_SPLITTER[article.xpath('lang')[0].text].span_tokenize(cleartext)]
 
@@ -152,7 +152,7 @@ def parse_article_text(cleartext, lang):
 	# for (s,e), words in sentences:
 	# 	print repr(cleartext[s:e]), '\n'
 	# 	print [cleartext[s:e][ws:we] for ws,we in words], '\n\n'
-	
+
 	return spans
 
 
@@ -164,7 +164,7 @@ def get_xlike_annotations(article, cleartext):
 	else:
 		annotations = article.xpath('//item/annotations/annotation')
 
-	ordered_annotations = []	
+	ordered_annotations = []
 	for annotation in annotations:
 		for mention in annotation.xpath('mentions/mention'):
 			# parse mention borders
@@ -172,6 +172,65 @@ def get_xlike_annotations(article, cleartext):
 			m_end = int(mention.get('end'))
 			# build the textSpan object representing the anotation mention
 			ordered_annotations.append( TextSpan(m_start, m_end, cleartext[m_start:m_end], annotation) )
+	ordered_annotations = sorted(ordered_annotations, cmp = lambda a,b: a.end - b.start)
+
+	return ordered_annotations
+
+
+def cumsum(values):
+	"""Return the cumulative sum of values in a list."""
+	cSum = [values[0]]
+	for v in values[1:]:
+		cSum.append( cSum[-1] + v )
+	return cSum
+
+
+def get_wikifier_annotations(article):
+	"""
+	Collect Wikifier annotations and return the ordered by mentions.
+	This function expects the wikifier annotation output json as input.
+	"""
+	assert "annotations" in article, "Expected annotated articles"
+
+	# compute character ranges of all words and spaces that comprise the article
+	# first combine spaces and word into a common list
+	assert len(article["spaces"]) == len(article["words"]) + 1, "Expected N words and N+1 spaces"
+	tokens = []
+	# combine words an their preceding spaces (spaces[0] + words[0] + spaces[1] + words[1] + ... + spaces[N-1] + words[N-1] + spaces[N])
+	for word_i in xrange(len(article["words"])):
+		tokens.extend([article["spaces"][word_i], article["words"][word_i]])
+	# addd the final space
+	tokens.append(article["spaces"][-1])
+	# compute token lengths and character ranges
+	token_lengths = [len(token) for token in tokens]
+	token_borders = [0] + cumsum(token_lengths)
+	token_ranges = zip( token_borders[:-1], token_borders[1:] )
+	# split to word and space ranges
+	word_ranges = [token_ranges[i] for i in xrange(1, len(token_ranges), 2)]
+	spaces_ranges = [token_ranges[i] for i in xrange(0, len(token_ranges), 2)]
+
+	# go over all annotations in the article
+	ordered_annotations = []
+	for annotation in article["annotations"]:
+		for mention in annotation["support"]:
+			# parse mention word indices
+			m_start = int(mention["wFrom"])
+			m_end = int(mention["wTo"])
+			# building the mention string - start with the first word
+			m_str = article["words"][m_start]
+			# add the rest (if any)
+			m_str += "".join([
+				article["words"][i] + article["spaces"][i]
+				for i in xrange(m_start + 1, m_end)])
+			# # add the last word if necessary
+			# if m_start < m_end:
+			# 	m_str += article["words"][m_end]
+			# build the textSpan object representing the anotation mention
+			ordered_annotations.append( TextSpan(
+				word_ranges[m_start][0],
+				word_ranges[m_end][1],
+				m_str,
+				annotation) )
 	ordered_annotations = sorted(ordered_annotations, cmp = lambda a,b: a.end - b.start)
 
 	return ordered_annotations
@@ -207,7 +266,7 @@ def get_allpairs_data(article, lang = None):
 	# 	print sent[0]
 	# 	for a in sas:
 	# 		print '\t', a.start, a.end, a.annotation.get('displayName'), 'str: >%s<' % cleartext[a.start:a.end]
-	
+
 	# initialize allpairs data lists
 	prec_contexts, succ_contexts, triples = [], [], []
 
@@ -392,7 +451,7 @@ def process_dir(directory, lang, outfile):
 		# print progress
 		filepath = os.path.join(directory, filename)
 		print "processing:", filepath
-		
+
 		# read the (only) article in the file
 		[article] = get_articles_from_annotator_file(filepath)
 		# compute the allpairs data
@@ -408,7 +467,7 @@ def process_file(filename, lang, outfile):
 	"""Extract allpairs data from all xml files in the given directory."""
 	# initialize aggregation lists
 	print "processing:", filename
-		
+
 	# read the (only) article in the file
 	[article] = get_articles_from_annotator_file(filename)
 	contexts, triples = get_allpairs_data_article(article, lang=lang)
@@ -442,7 +501,7 @@ def test():
     	print ('\n'.join( '%s    |    %s    | %s' % (annotation1, context, annotation2) for annotation1, context, annotation2 in triples )).encode('utf8')
 
     	output_allpairs_data((prec_contexts, succ_contexts, triples), 'test', True)
-    	pdb.set_trace()	
+    	pdb.set_trace()
 
 
 def main():
