@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#this is a simple script that should take a list of URI from the 
+#paramenter file and output WARC files into the warc directory
+
+#the file to be archived
+uri_list=$1
+
+counter=0
+
+while read line; do
+
+    wget --mirror --warc-file=file_$counter --warc-cdx \
+        --page-requisites --html-extension --convert-links \
+        --execute robots=off --directory-prefix=. --span-hosts \
+        --domains=example.com,www.example.com,cdn.example.com \
+        --wait=10 \
+        --random-wait \
+        $line
+
+    ((counter++))
+
+    mv *.gz warc
+    mv *.cdx warc
+    mv *.org warc
+
+done < uri.list
