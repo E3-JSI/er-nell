@@ -1,15 +1,18 @@
 from eventregistry import *
 import json
 import argparse
+import pdb
 
 # parse the input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("keyword", help="Keyword to categorize.")
-parser.add_argument("--apiKey", help="Event Registry API key (obtainable on you ER profile page).")
-parser.add_argument("--max_concept_suggestions", action="store", type=int, default=3, help="Maximum number of concept suggestions (default: 3)")
-parser.add_argument("--max_related_events", action="store", type=int, default=3, help="Maximum number of related events (default: 3)")
-parser.add_argument("--events_for_keyword", action="store_true", default=False, help="get [max_related_events] directly related to the given keyword (default: [max_related_events] events per suggested concept)")
-parser.add_argument("--get_articles", action="store_true", default=False, help="get ER article URLs for the events")
+parser.add_argument("outputFile", help="Path to output file. (json)")
+parser.add_argument("-a", "--apiKey", help="Event Registry API key (obtainable on you ER profile page).")
+parser.add_argument("-c", "--max_concept_suggestions", action="store", type=int, default=3, help="Maximum number of concept suggestions (default: 3)")
+parser.add_argument("-e", "--max_related_events", action="store", type=int, default=3, help="Maximum number of related events (default: 3)")
+parser.add_argument("-k", "--events_for_keyword", action="store_true", default=False, help="get [max_related_events] directly related to the given keyword (default: [max_related_events] events per suggested concept)")
+parser.add_argument("-ga", "--get_articles", action="store_true", default=False, help="get ER article URLs for the events")
+parser.add_argument("-ma", "--max_articles_per_event", action="store", type=int, default=-1, help="Maximum number of articles per event (default: all)")
 args = parser.parse_args()
 
 # connect to Event Registry and log in if API key provided
@@ -41,8 +44,7 @@ for concept_suggestion in query_result['concept_suggestions']:
 # return either top related events for the suggested concepts or directly for the keyord
 if args.events_for_keyword:
 # get related events for the keyword
-    q = QueryEvents(lang=['eng']) # events should have english info
-    q.addKeyword(args.keyword)
+    q = QueryEvents(keywords=args.keyword, lang=['eng']) # events should have english info
     q.addRequestedResult(
         RequestEventsInfo(
             count = 3,
@@ -91,8 +93,7 @@ if args.events_for_keyword:
 else:
     # get related events for each concept
     for concept_suggestion in query_result['concept_suggestions']:
-        q = QueryEvents(lang=['eng']) # events should have english info
-        q.addConcept(concept_suggestion['uri'])
+        q = QueryEvents(conceptUri=concept_suggestion['uri'], lang=['eng']) # events should have english info
         q.addRequestedResult(
             RequestEventsInfo(
                 count = 3,
@@ -134,10 +135,23 @@ else:
             event['location'] = event_info['location']
             event['date'] = event_info['eventDate']
             if args.get_articles:
-                event['articles'] = [
-                    article["url"]
-                    for article in event_articles[event_info['uri']]['articles']['results']]
+                # prepare query for articles
+                artQuery = QueryEventArticlesIter(event['uri'])
+                # build an iterator over evet articles
+                artIter = artQuery.execQuery(
+                    er,
+                    maxItems = args.max_articles_per_event,
+                    returnInfo = ReturnInfo(
+                        articleInfo = ArticleInfoFlags(
+                            bodyLen = 0,
+                            title = False,
+                            body = False,
+                            eventUri = False)))
+                # collect article source urls
+                event['articles'] = [article["url"] for article in artIter]
 
             concept_suggestion['related_events'].append(event)
 
-print json.dumps(query_result, indent=2)
+print "outputing results to: %s" % args.outputFile
+with open(args.outputFile, 'w') as outfile:
+    json.dump(query_result, outfile, indent=2)
