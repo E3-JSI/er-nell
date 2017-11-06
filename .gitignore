@@ -1,0 +1,8 @@
+*.swp
+*.pyc
+*.list
+*.json
+*.gz
+*.cdx
+*.org
+*.html
