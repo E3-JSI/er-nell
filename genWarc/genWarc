@@ -1,0 +1,21 @@
+#!/bin/bash
+
+#this is a script that takes one URI and build its
+#correspondent WARC file and stores the files in the warc
+#directory
+
+webpage=$1
+
+mkdir -p warc
+
+wget --mirror --warc-file=file_$counter --warc-cdx \
+    --page-requisites --html-extension --convert-links \
+    --execute robots=off --directory-prefix=. --span-hosts \
+    --domains=example.com,www.example.com,cdn.example.com \
+    --wait=10 \
+    --random-wait \
+    $webpage
+
+    mv *.gz warc
+    mv *.cdx warc
+    mv *.org warc
