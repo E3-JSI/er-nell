@@ -6,3 +6,6 @@
 *.cdx
 *.org
 *.html
+*.temp
+*.txt
+*.tmp
