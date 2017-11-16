@@ -60,20 +60,6 @@ if args.events_for_keyword:
                     date=True))))
     keyword_events = er.execQuery(q)
 
-    # get articles for the events
-    if args.get_articles:
-        q = QueryEvent([event["uri"] for event in keyword_events['events']['results']])
-        q.addRequestedResult(
-            RequestEventArticles(
-                returnInfo = ReturnInfo(
-                    articleInfo = ArticleInfoFlags(
-                        bodyLen = 0,
-                        title = False,
-                        body = False,
-                        eventUri = False))))
-        event_articles = er.execQuery(q)
-
-
     query_result['related_events'] = []
     if 'events' in keyword_events and 'results' in keyword_events['events']:
         for event_info in keyword_events['events']['results']:
@@ -86,9 +72,20 @@ if args.events_for_keyword:
             event['date'] = event_info['eventDate']
             event['articles'] = []
             if args.get_articles:
-                event['articles'] = [
-                    article["url"]
-                    for article in event_articles[event_info['uri']]['articles']['results']]
+                # prepare query for articles
+                artQuery = QueryEventArticlesIter(event['uri'])
+                # build an iterator over evet articles
+                artIter = artQuery.execQuery(
+                    er,
+                    maxItems = args.max_articles_per_event,
+                    returnInfo = ReturnInfo(
+                        articleInfo = ArticleInfoFlags(
+                            bodyLen = 0,
+                            title = False,
+                            body = False,
+                            eventUri = False)))
+                # collect article source urls
+                event['articles'] = [article["url"] for article in artIter]
 
             query_result['related_events'].append(event)
 else:
@@ -112,19 +109,6 @@ else:
 
         if "error" in concept_events:
             continue
-
-        # get articles for the events
-        if args.get_articles:
-            q = QueryEvent([event["uri"] for event in concept_events['events']['results']])
-            q.addRequestedResult(
-                RequestEventArticles(
-                    returnInfo = ReturnInfo(
-                        articleInfo = ArticleInfoFlags(
-                            bodyLen = 0,
-                            title = False,
-                            body = False,
-                            eventUri = False))))
-            event_articles = er.execQuery(q)
 
         concept_suggestion['related_events'] = []
         if 'events' in concept_events and 'results' in concept_events['events']:
