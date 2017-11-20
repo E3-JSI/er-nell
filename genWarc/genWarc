@@ -4,12 +4,13 @@
 #correspondent WARC file and stores the files in the warc
 #directory
 
-webpage=$1
+webpage=$1	#the webpage uri to be converted into warc
+counter=$2      #a reference counter to build the filename
 
 mkdir -p warc
 
-wget --mirror --warc-file=file_$counter --warc-cdx \
-    --page-requisites --html-extension --convert-links \
+wget --mirror --warc-file=file_$counter \
+    --html-extension --convert-links \
     --execute robots=off --directory-prefix=. --span-hosts \
     --domains=example.com,www.example.com,cdn.example.com \
     --wait=10 \
@@ -17,5 +18,3 @@ wget --mirror --warc-file=file_$counter --warc-cdx \
     $webpage
 
     mv *.gz warc
-    mv *.cdx warc
-    mv *.org warc

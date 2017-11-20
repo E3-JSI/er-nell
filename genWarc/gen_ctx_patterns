@@ -10,17 +10,17 @@ rm -f er_search_results.json.tmp
 rm -f webpage_list.tmp
 mkdir -p ../logs
 
+#flag to build a filename for links of returned pages
+counter=0
+
 #for all learned patterns
 while read line; do
-
-    #flag to build a filename for links of returned pages
-    counter=0
 
     #extract the contextual pattern
     ctx_pattern=$(echo "$line" | cut -f1 | sed -e 's/_//')
 
     #use the contextual pattern as parameter of the search on ER
-    python ../categorizER/categorizER.py --apiKey $apiKey -k "$ctx_pattern" er_search_results.json.tmp
+    python ../categorizER/categorizER.py --apiKey $apiKey --get_articles -k "$ctx_pattern" er_search_results.json.tmp
 
     #parse the url from the search results
     python uriExtractor.py er_search_results.json.tmp webpage_list.tmp
@@ -29,16 +29,17 @@ while read line; do
     while read line; do
 
         #send control message
-        echo generating WARC for $line base on search param $ctx_pattern
+        echo generating WARC for $line based on search param $ctx_pattern
 
         #generate a WARC file of the webpage
-        ./genWarc $line
+        ./genWarc $line $counter
+
+        let counter++
 
     done < webpage_list.tmp
 
     #create log file
     mv webpage_list.tmp logs/webpage_list.$counter
 
-    let counter++
 
 done < $all_pairs_file
