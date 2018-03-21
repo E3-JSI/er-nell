@@ -52,6 +52,37 @@ returnInfoSpec = ReturnInfo(
             location = True,
             date = True))
 
+
+def build_event(event_info):
+    """Clean up and format the event info returned by ER."""
+    event = {}
+    event['uri'] = event_info['uri']
+    event['fullUri'] = "http://eventregistry.org/event/" + event_info['uri']
+    event['title'] = {'eng': event_info['title']['eng']}
+    event['location'] = event_info['location']
+    event['date'] = event_info['eventDate']
+    return event
+
+
+def get_articles(event_uri, er, max_articles):
+    """Download articles for the event."""
+    # prepare query for articles
+    artQuery = QueryEventArticlesIter(event_uri)
+    # build an iterator over evet articles
+    artIter = artQuery.execQuery(
+        er,
+        maxItems = max_articles,
+        returnInfo = ReturnInfo(
+            articleInfo = ArticleInfoFlags(
+                bodyLen = 0,
+                title = False,
+                body = False,
+                eventUri = False)))
+    # collect article source urls
+    articles = [article["url"] for article in artIter]
+    return articles
+
+
 # return either top related events for the suggested concepts or directly for the keyord
 if args.events_for_keyword:
 # get related events for the keyword
@@ -67,28 +98,10 @@ if args.events_for_keyword:
     query_result['related_events'] = []
     for event_info in keyword_event_iter:
         # clean up the returned json
-        event = {}
-        event['uri'] = event_info['uri']
-        event['fullUri'] = "http://eventregistry.org/event/" + event_info['uri']
-        event['title'] = {'eng': event_info['title']['eng']}
-        event['location'] = event_info['location']
-        event['date'] = event_info['eventDate']
-        event['articles'] = []
+        event = build_event(event_info)
+        # get event articles if specified
         if args.get_articles:
-            # prepare query for articles
-            artQuery = QueryEventArticlesIter(event['uri'])
-            # build an iterator over evet articles
-            artIter = artQuery.execQuery(
-                er,
-                maxItems = args.max_articles_per_event,
-                returnInfo = ReturnInfo(
-                    articleInfo = ArticleInfoFlags(
-                        bodyLen = 0,
-                        title = False,
-                        body = False,
-                        eventUri = False)))
-            # collect article source urls
-            event['articles'] = [article["url"] for article in artIter]
+            event['articles'] = get_articles(event['uri'], er, args.max_articles_per_event)
 
         query_result['related_events'].append(event)
 else:
@@ -107,27 +120,10 @@ else:
         concept_suggestion['related_events'] = []
         for event_info in concept_event_iter:
             # clean up the returned json
-            event = {}
-            event['uri'] = event_info['uri']
-            event['fullUri'] = "http://eventregistry.org/event/" + event_info['uri']
-            event['title'] = {'eng': event_info['title']['eng']}
-            event['location'] = event_info['location']
-            event['date'] = event_info['eventDate']
+            event = build_event(event_info)
+            # get event articles if specified
             if args.get_articles:
-                # prepare query for articles
-                artQuery = QueryEventArticlesIter(event['uri'])
-                # build an iterator over evet articles
-                artIter = artQuery.execQuery(
-                    er,
-                    maxItems = args.max_articles_per_event,
-                    returnInfo = ReturnInfo(
-                        articleInfo = ArticleInfoFlags(
-                            bodyLen = 0,
-                            title = False,
-                            body = False,
-                            eventUri = False)))
-                # collect article source urls
-                event['articles'] = [article["url"] for article in artIter]
+                event['articles'] = get_articles(event['uri'], er, args.max_articles_per_event)
 
             concept_suggestion['related_events'].append(event)
 
