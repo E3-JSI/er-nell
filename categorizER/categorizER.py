@@ -41,28 +41,71 @@ for concept_suggestion in query_result['concept_suggestions']:
     concept_suggestion['categories'] = concept_info[concept_suggestion['uri']]['conceptClassMembershipFull']
     concept_suggestion['topCategory'] = concept_info[concept_suggestion['uri']]['conceptClassMembership']
 
+# returned event info is the same for both types of queries
+returnInfoSpec = ReturnInfo(
+        eventInfo = EventInfoFlags(
+            title = True,
+            summary = False,
+            articleCounts = False,
+            concepts = False,
+            categories = False,
+            location = True,
+            date = True))
+
 # return either top related events for the suggested concepts or directly for the keyord
 if args.events_for_keyword:
 # get related events for the keyword
-    q = QueryEvents(keywords=args.keyword, lang=['eng']) # events should have english info
-    q.addRequestedResult(
-        RequestEventsInfo(
-            count = 3,
-            sortBy = "rel",
-            returnInfo = ReturnInfo(
-                eventInfo = EventInfoFlags(
-                    title=True,
-                    summary=False,
-                    articleCounts=False,
-                    concepts=False,
-                    categories=False,
-                    location=True,
-                    date=True))))
-    keyword_events = er.execQuery(q)
+    q = QueryEventsIter(
+        keywords = args.keyword,
+        lang = ['eng']) # events should have english info)
+    keyword_event_iter = q.execQuery(
+        er,
+        sortBy = 'rel',
+        maxItems = args.max_related_events,
+        returnInfo = returnInfoSpec)
 
     query_result['related_events'] = []
-    if 'events' in keyword_events and 'results' in keyword_events['events']:
-        for event_info in keyword_events['events']['results']:
+    for event_info in keyword_event_iter:
+        # clean up the returned json
+        event = {}
+        event['uri'] = event_info['uri']
+        event['fullUri'] = "http://eventregistry.org/event/" + event_info['uri']
+        event['title'] = {'eng': event_info['title']['eng']}
+        event['location'] = event_info['location']
+        event['date'] = event_info['eventDate']
+        event['articles'] = []
+        if args.get_articles:
+            # prepare query for articles
+            artQuery = QueryEventArticlesIter(event['uri'])
+            # build an iterator over evet articles
+            artIter = artQuery.execQuery(
+                er,
+                maxItems = args.max_articles_per_event,
+                returnInfo = ReturnInfo(
+                    articleInfo = ArticleInfoFlags(
+                        bodyLen = 0,
+                        title = False,
+                        body = False,
+                        eventUri = False)))
+            # collect article source urls
+            event['articles'] = [article["url"] for article in artIter]
+
+        query_result['related_events'].append(event)
+else:
+    # get related events for each concept
+    for concept_suggestion in query_result['concept_suggestions']:
+        q = QueryEventsIter(
+            conceptUri=concept_suggestion['uri'],
+            lang=['eng']) # events should have english info
+
+        concept_event_iter = q.execQuery(
+            er,
+            sortBy = 'rel',
+            maxItems = args.max_related_events,
+            returnInfo = returnInfoSpec)
+
+        concept_suggestion['related_events'] = []
+        for event_info in concept_event_iter:
             # clean up the returned json
             event = {}
             event['uri'] = event_info['uri']
@@ -70,7 +113,6 @@ if args.events_for_keyword:
             event['title'] = {'eng': event_info['title']['eng']}
             event['location'] = event_info['location']
             event['date'] = event_info['eventDate']
-            event['articles'] = []
             if args.get_articles:
                 # prepare query for articles
                 artQuery = QueryEventArticlesIter(event['uri'])
@@ -87,56 +129,7 @@ if args.events_for_keyword:
                 # collect article source urls
                 event['articles'] = [article["url"] for article in artIter]
 
-            query_result['related_events'].append(event)
-else:
-    # get related events for each concept
-    for concept_suggestion in query_result['concept_suggestions']:
-        q = QueryEvents(conceptUri=concept_suggestion['uri'], lang=['eng']) # events should have english info
-        q.addRequestedResult(
-            RequestEventsInfo(
-                count = 3,
-                sortBy = "rel",
-                returnInfo = ReturnInfo(
-                    eventInfo = EventInfoFlags(
-                        title=True,
-                        summary=False,
-                        articleCounts=False,
-                        concepts=False,
-                        categories=False,
-                        location=True,
-                        date=True))))
-        concept_events = er.execQuery(q)
-
-        if "error" in concept_events:
-            continue
-
-        concept_suggestion['related_events'] = []
-        if 'events' in concept_events and 'results' in concept_events['events']:
-            for event_info in concept_events['events']['results']:
-                # clean up the returned json
-                event = {}
-                event['uri'] = event_info['uri']
-                event['fullUri'] = "http://eventregistry.org/event/" + event_info['uri']
-                event['title'] = {'eng': event_info['title']['eng']}
-                event['location'] = event_info['location']
-                event['date'] = event_info['eventDate']
-                if args.get_articles:
-                    # prepare query for articles
-                    artQuery = QueryEventArticlesIter(event['uri'])
-                    # build an iterator over evet articles
-                    artIter = artQuery.execQuery(
-                        er,
-                        maxItems = args.max_articles_per_event,
-                        returnInfo = ReturnInfo(
-                            articleInfo = ArticleInfoFlags(
-                                bodyLen = 0,
-                                title = False,
-                                body = False,
-                                eventUri = False)))
-                    # collect article source urls
-                    event['articles'] = [article["url"] for article in artIter]
-
-                concept_suggestion['related_events'].append(event)
+            concept_suggestion['related_events'].append(event)
 
 print "outputing results to: %s" % args.outputFile
 with open(args.outputFile, 'w') as outfile:
