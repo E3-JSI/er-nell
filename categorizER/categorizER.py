@@ -10,6 +10,7 @@ parser.add_argument("outputFile", help="Path to output file. (json)")
 parser.add_argument("-a", "--apiKey", help="Event Registry API key (obtainable on you ER profile page).")
 parser.add_argument("-c", "--max_concept_suggestions", action="store", type=int, default=3, help="Maximum number of concept suggestions (default: 3)")
 parser.add_argument("-e", "--max_related_events", action="store", type=int, default=3, help="Maximum number of related events (default: 3)")
+parser.add_argument("-r", "--cutoff_related_events", action="store", type=int, default=0, help="Relatedness to the query cutoff; values in [0, 100] (default: 0 - all events)")
 parser.add_argument("-k", "--events_for_keyword", action="store_true", default=False, help="get [max_related_events] directly related to the given keyword (default: [max_related_events] events per suggested concept)")
 parser.add_argument("-ga", "--get_articles", action="store_true", default=False, help="get ER article URLs for the events")
 parser.add_argument("-ma", "--max_articles_per_event", action="store", type=int, default=-1, help="Maximum number of articles per event (default: all)")
@@ -61,6 +62,7 @@ def build_event(event_info):
     event['title'] = {'eng': event_info['title']['eng']}
     event['location'] = event_info['location']
     event['date'] = event_info['eventDate']
+    event['wgt'] = event_info['wgt']
     return event
 
 
@@ -97,6 +99,10 @@ if args.events_for_keyword:
 
     query_result['related_events'] = []
     for event_info in keyword_event_iter:
+        # stop when events are not related enough anymore
+        if event_info['wgt'] < args.cutoff_related_events:
+            break
+
         # clean up the returned json
         event = build_event(event_info)
         # get event articles if specified
@@ -119,6 +125,10 @@ else:
 
         concept_suggestion['related_events'] = []
         for event_info in concept_event_iter:
+            # stop when events are not related enough anymore
+            if event_info['wgt'] < args.cutoff_related_events:
+                break
+
             # clean up the returned json
             event = build_event(event_info)
             # get event articles if specified
