@@ -5,6 +5,7 @@
 
 apiKey=$1
 search_param_file=$2
+numEvents=$3
 
 rm -f er_search_results.json.tmp
 rm -f webpage_list.tmp
@@ -19,7 +20,7 @@ while read line; do
     search_param=$line
 
     #perform search query on ER
-    python ../categorizER/categorizER.py --apiKey $apiKey --get_articles -e 100 -r 40 "$search_param" er_search_results.json.tmp
+    python ../categorizER/categorizER.py --apiKey $apiKey --get_articles -e $numEvents -r 40 "$search_param" er_search_results.json.tmp
 
     #parse the url from the search results
     python uriExtractor.py er_search_results.json.tmp webpage_list.tmp
